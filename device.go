@@ -27,12 +27,7 @@ func NewDevice(id string) (*Device, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = bytes.TrimRightFunc(out, func(r rune) bool {
-			if r == '\n' || r == '\r' {
-				return true
-			}
-			return false
-		})
+		out = TrimRightControlKey(out)
 		point := strings.SplitN(string(out), "x", 2)
 		width, _ := strconv.Atoi(point[0])
 		height, _ := strconv.Atoi(point[1])
@@ -124,11 +119,11 @@ func (d *Device) GetPixelColor(x, y int) string {
 }
 
 func (d *Device) CurrentActivity() string {
-	out, err := exec.Command("adb", "-s", d.id, "\"shell dumpsys activity top | grep ACTIVITY | cut -d' ' -f 4\"").Output()
+	out, err := exec.Command("adb", "-s", d.id, "shell", "dumpsys activity top | grep ACTIVITY | cut -d' ' -f 4").Output()
 	if err != nil {
 		return ""
 	}
-	return string(out)
+	return string(TrimRightControlKey(out))
 }
 
 func (d *Device) IsCurrentActivity(name string) bool {
@@ -148,4 +143,13 @@ func (d *Device) StopApplication(name string) error {
 func (d *Device) PressButton(key KeyCode) error {
 	_, err := exec.Command("adb", "-s", d.id, "shell input keyevent", strconv.Itoa(int(key))).Output()
 	return err
+}
+
+func TrimRightControlKey(in []byte) []byte {
+	return bytes.TrimRightFunc(in, func(r rune) bool {
+		if r == '\n' || r == '\r' {
+			return true
+		}
+		return false
+	})
 }
