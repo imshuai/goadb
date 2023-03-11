@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type Device struct {
@@ -91,21 +89,12 @@ func (d *Device) GetWindowSize() (int, int) {
 }
 
 func (d *Device) GetScreenPicture() (image.Image, error) {
-	name := uuid.New().String()
-	name += ".png"
-	_, err := exec.Command("adb", "-s", d.id, "shell", "screencap", "-p", ">", name).Output()
+	out, err := exec.Command("adb", "-s", d.id, "exec-out", "screencap", "-p").Output()
 	if err != nil {
 		return nil, err
 	}
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		f.Close()
-		os.Remove(name)
-	}()
-	return png.Decode(f)
+	buf := bytes.NewReader(out)
+	return png.Decode(buf)
 }
 
 func (d *Device) GetPixelColor(x, y int) string {
@@ -113,9 +102,18 @@ func (d *Device) GetPixelColor(x, y int) string {
 	if err != nil {
 		return ""
 	}
-	color := img.At(x, y)
-	r, b, g, _ := color.RGBA()
-	return fmt.Sprintf("#%02X%02X%02X", r, b, g)
+	c := img.At(x, y).(color.NRGBA)
+	return fmt.Sprintf("#%02X%02X%02X", c.R, c.G, c.B)
+}
+
+func (d *Device) GetPixelsColor(pixels [][2]int) []string {
+	cap, _ := d.GetScreenPicture()
+	pixelsColor := make([]string, len(pixels))
+	for idx, p := range pixels {
+		c := cap.At(p[0], p[1]).(color.NRGBA)
+		pixelsColor[idx] = fmt.Sprintf("#%02X%02X%02X", c.R, c.G, c.B)
+	}
+	return pixelsColor
 }
 
 func (d *Device) CurrentActivity() string {
@@ -141,7 +139,7 @@ func (d *Device) StopApplication(name string) error {
 }
 
 func (d *Device) PressButton(key KeyCode) error {
-	_, err := exec.Command("adb", "-s", d.id, "shell input keyevent", strconv.Itoa(int(key))).Output()
+	_, err := exec.Command("adb", "-s", d.id, "shell", "input keyevent", strconv.Itoa(int(key))).Output()
 	return err
 }
 
